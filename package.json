@@ -19,6 +19,7 @@
     "url": "https://github.com/neptunian/react-photo-gallery/issues"
   },
   "dependencies": {
+    "lodash": "^4.17.15",
     "prop-types": "~15.7.2",
     "resize-observer-polyfill": "^1.5.0"
   },
@@ -45,11 +46,12 @@
     "jest": "^24.7.1",
     "jest-cli": "^24.7.1",
     "jsonp": "^0.2.1",
+    "nodemon": "^2.0.2",
     "nps": "^5.7.1",
     "nps-utils": "^1.4.0",
     "prettier": "^1.6.1",
-    "react": "^16.8.6",
-    "react-dom": "^16.8.6",
+    "react": "^16.12.0",
+    "react-dom": "^16.12.0",
     "react-images": "^1.0.0",
     "react-sortable-hoc": "^1.9.1",
     "react-test-renderer": "^16.1.1",

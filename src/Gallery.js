@@ -1,10 +1,11 @@
-import React, { useState, useLayoutEffect, useRef, useMemo } from 'react';
+import React, { useState, useLayoutEffect, useEffect, useRef, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import ResizeObserver from 'resize-observer-polyfill';
 import Photo, { photoPropType } from './Photo';
 import { computeColumnLayout } from './layouts/columns';
 import { computeRowLayout } from './layouts/justified';
 import { findIdealNodeSearch } from './utils/findIdealNodeSearch';
+const _ = require('lodash')
 
 const Gallery = React.memo(function Gallery({
   photos,
@@ -15,11 +16,20 @@ const Gallery = React.memo(function Gallery({
   targetRowHeight,
   columns,
   renderImage,
+  enableDebounce,
+  debounceTime,
+  addHeight,
+  layoutFinished
 }) {
   const [containerWidth, setContainerWidth] = useState(0);
   const galleryEl = useRef(null);
 
+  // console.log(containerWidth)
+
+  const debouncedSetContainerWidth = _.debounce(setContainerWidth, debounceTime);
+
   useLayoutEffect(() => {
+    // console.log("photo: useLayoutEffect")
     let animationFrameID = null;
     const observer = new ResizeObserver(entries => {
       // only do something if width changes
@@ -28,7 +38,12 @@ const Gallery = React.memo(function Gallery({
         // put in an animation frame to stop "benign errors" from
         // ResizObserver https://stackoverflow.com/questions/49384120/resizeobserver-loop-limit-exceeded
         animationFrameID = window.requestAnimationFrame(() => {
-          setContainerWidth(Math.floor(newWidth));
+          // Immediately setContainerWidth if previous value was 0 or debounce is disabled
+          if (containerWidth === 0 || !enableDebounce) {
+            setContainerWidth(Math.floor(newWidth));
+          } else {
+            debouncedSetContainerWidth(Math.floor(newWidth));
+          }
         });
       }
     });
@@ -38,6 +53,14 @@ const Gallery = React.memo(function Gallery({
       window.cancelAnimationFrame(animationFrameID);
     };
   });
+
+  useEffect(() => {
+    // console.log("photo: useEffect")
+    // console.log(containerWidth)
+    if (containerWidth !== 0) {
+      layoutFinished()
+    }
+  })
 
   const handleClick = (event, { index }) => {
     onClick(event, {
@@ -49,7 +72,11 @@ const Gallery = React.memo(function Gallery({
   };
 
   // no containerWidth until after first render with refs, skip calculations and render nothing
-  if (!containerWidth) return <div ref={galleryEl}>&nbsp;</div>;
+  if (!containerWidth) return (
+    <div className="react-photo-gallery--gallery">
+      <div ref={galleryEl}>&nbsp;</div>
+    </div>
+  )
   // subtract 1 pixel because the browser may round up a pixel
   const width = containerWidth - 1;
   let galleryStyle, thumbs;
@@ -62,6 +89,12 @@ const Gallery = React.memo(function Gallery({
     if (typeof targetRowHeight === 'function') {
       targetRowHeight = targetRowHeight(containerWidth);
     }
+    if (typeof margin === 'function') {
+      margin = margin(containerWidth);
+    }
+    if (typeof addHeight === 'function') {
+      addHeight = addHeight(containerWidth);
+    }
     // set how many neighboring nodes the graph will visit
     if (limitNodeSearch === undefined) {
       limitNodeSearch = 2;
@@ -70,8 +103,8 @@ const Gallery = React.memo(function Gallery({
       }
     }
 
-    galleryStyle = { display: 'flex', flexWrap: 'wrap', flexDirection: 'row' };
-    thumbs = computeRowLayout({ containerWidth: width, limitNodeSearch, targetRowHeight, margin, photos });
+    galleryStyle = { display: 'flex', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'space-between' };
+    thumbs = computeRowLayout({ containerWidth: width, limitNodeSearch, targetRowHeight, margin, addHeight, photos });
   }
   if (direction === 'column') {
     // allow user to calculate columns from containerWidth
@@ -95,7 +128,7 @@ const Gallery = React.memo(function Gallery({
     <div className="react-photo-gallery--gallery">
       <div ref={galleryEl} style={galleryStyle}>
         {thumbs.map((thumb, index) => {
-          const { left, top, containerHeight, ...photo } = thumb;
+          const { left, top, containerHeight, justified, ...photo } = thumb;
           return renderComponent({
             left,
             top,
@@ -105,6 +138,8 @@ const Gallery = React.memo(function Gallery({
             margin,
             direction,
             onClick: onClick ? handleClick : null,
+            justified,
+            addHeight,
             photo,
           });
         })}
@@ -120,14 +155,21 @@ Gallery.propTypes = {
   columns: PropTypes.oneOfType([PropTypes.func, PropTypes.number]),
   targetRowHeight: PropTypes.oneOfType([PropTypes.func, PropTypes.number]),
   limitNodeSearch: PropTypes.oneOfType([PropTypes.func, PropTypes.number]),
-  margin: PropTypes.number,
+  margin: PropTypes.oneOfType([PropTypes.func, PropTypes.number]),
   renderImage: PropTypes.func,
+  enableDebounce: PropTypes.bool,
+  debounceTime: PropTypes.number,
+  addHeight: PropTypes.oneOfType([PropTypes.func, PropTypes.number])
 };
 
 Gallery.defaultProps = {
   margin: 2,
   direction: 'row',
   targetRowHeight: 300,
+  enableDebounce: true,
+  debounceTime: 100,
+  addHeight: 0,
+  layoutFinished: () => {}
 };
 export { Photo };
 export default Gallery;
